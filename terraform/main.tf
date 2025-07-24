@@ -2,7 +2,7 @@ terraform {
   required_providers {
     koyeb = {
       source = "koyeb/koyeb"
-      version = "~> 2.1.0"  # Usando versão mais recente da série 2.1.x
+      version = ">= 2.1.0, < 3.0.0"  # Intervalo de versões aceitáveis
     }
   }
 }
@@ -15,15 +15,16 @@ variable "koyeb_token" {
 
 variable "image" {
   type        = string
-  description = "Docker image to deploy"
+  description = "Docker image to deploy (format: repository:tag)"
 }
 
 provider "koyeb" {
+  # Configuração do token via variável
   token = var.koyeb_token
 }
 
 resource "koyeb_app" "saudacoes-app" {
-  name = "saudacoes-app-${substr(uuid(), 0, 8)}"  # Nome único para cada deploy
+  name = "saudacoes-app-${replace(substr(uuid(), 0, 8), "-", "")}"  # Nome único sem hifens
 }
 
 resource "koyeb_service" "saudacoes-service" {
