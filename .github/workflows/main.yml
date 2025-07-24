@@ -14,34 +14,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.21'
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
 
   lint:
     runs-on: ubuntu-latest
-    needs: setup
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-go@v5
       with:
         go-version: '1.21'
-    - name: Run golint
+    - name: Run lint checks
       run: |
         go install golang.org/x/lint/golint@latest
         golint ./...
-    - name: Run go vet
-      run: go vet ./...
-    - name: Run go fmt
-      run: go fmt ./...
+        go vet ./...
+        go fmt ./...
 
   test:
     runs-on: ubuntu-latest
@@ -54,15 +40,8 @@ jobs:
     - name: Run tests
       run: |
         mkdir -p reports
-        go test -v -coverprofile=reports/coverage.out ./... 2>&1 | tee reports/test.log
+        go test -v -coverprofile=reports/coverage.out ./...
         go tool cover -html=reports/coverage.out -o reports/coverage.html
-        go install github.com/jstemmer/go-junit-report@latest
-        cat reports/test.log | go-junit-report > reports/junit.xml
-    - name: Upload test results
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-reports
-        path: reports/
 
   build:
     runs-on: ubuntu-latest
@@ -74,17 +53,12 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
     - name: Build and push
       uses: docker/build-push-action@v5
       with:
         context: .
-        platforms: linux/amd64,linux/arm64
         push: true
-        tags: |
-          ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
-          ${{ env.DOCKER_IMAGE }}:latest
+        tags: ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }},${{ env.DOCKER_IMAGE }}:latest
 
   deploy:
     runs-on: ubuntu-latest
@@ -95,50 +69,25 @@ jobs:
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 1.5.7
-        terraform_wrapper: false
     
-    - name: Install Koyeb Provider Manually
+    - name: Install Koyeb Provider
       run: |
-        # Criar estrutura de diretórios necessária
-        mkdir -p ~/.terraform.d/plugins/koyeb/koyeb/2.1.0/linux_amd64
-        
-        # Download do provider
-        curl -sLo ~/.terraform.d/plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb \
+        mkdir -p /tmp/terraform-plugins/koyeb/koyeb/2.1.0/linux_amd64
+        curl -sLo /tmp/terraform-plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb \
           https://github.com/koyeb/terraform-provider-koyeb/releases/download/v2.1.0/terraform-provider-koyeb_2.1.0_linux_amd64
-        
-        # Tornar o arquivo executável
-        chmod +x ~/.terraform.d/plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb
-        
-        # Verificar se o arquivo foi baixado corretamente
-        file ~/.terraform.d/plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb
-        ls -la ~/.terraform.d/plugins/koyeb/koyeb/2.1.0/linux_amd64/
+        chmod +x /tmp/terraform-plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb
     
     - name: Terraform Init
       working-directory: ./terraform
       run: |
-        # Limpar cache se existir
-        rm -rf .terraform .terraform.lock.hcl
+        export TF_PLUGIN_CACHE_DIR="/tmp/terraform-plugins"
+        terraform init -input=false -plugin-dir=/tmp/terraform-plugins
         
-        # Inicializar Terraform
-        terraform init -input=false
-        
-        # Listar providers para debug
-        terraform providers
-    
-    - name: Terraform Plan
-      working-directory: ./terraform
-      run: |
-        terraform plan \
-          -input=false \
-          -var="koyeb_token=${{ secrets.KOYEB_API_KEY }}" \
-          -var="image=${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}"
-    
     - name: Terraform Apply
       working-directory: ./terraform
       run: |
-        terraform apply \
-          -auto-approve \
-          -input=false \
+        export TF_PLUGIN_CACHE_DIR="/tmp/terraform-plugins"
+        terraform apply -auto-approve -input=false \
           -var="koyeb_token=${{ secrets.KOYEB_API_KEY }}" \
           -var="image=${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}"
       env:
@@ -146,7 +95,6 @@ jobs:
 
   destroy:
     runs-on: ubuntu-latest
-    needs: []
     if: ${{ github.event_name == 'workflow_dispatch' }}
     steps:
     - uses: actions/checkout@v4
@@ -154,25 +102,17 @@ jobs:
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 1.5.7
-        terraform_wrapper: false
     
-    - name: Install Koyeb Provider Manually
+    - name: Install Koyeb Provider
       run: |
-        mkdir -p ~/.terraform.d/plugins/koyeb/koyeb/2.1.0/linux_amd64
-        curl -sLo ~/.terraform.d/plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb \
+        mkdir -p /tmp/terraform-plugins/koyeb/koyeb/2.1.0/linux_amd64
+        curl -sLo /tmp/terraform-plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb \
           https://github.com/koyeb/terraform-provider-koyeb/releases/download/v2.1.0/terraform-provider-koyeb_2.1.0_linux_amd64
-        chmod +x ~/.terraform.d/plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb
-    
-    - name: Terraform Init
-      working-directory: ./terraform
-      run: |
-        rm -rf .terraform .terraform.lock.hcl
-        terraform init -input=false
+        chmod +x /tmp/terraform-plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb
     
     - name: Terraform Destroy
       working-directory: ./terraform
       run: |
-        terraform destroy \
-          -auto-approve \
-          -input=false \
+        export TF_PLUGIN_CACHE_DIR="/tmp/terraform-plugins"
+        terraform destroy -auto-approve -input=false \
           -var="koyeb_token=${{ secrets.KOYEB_API_KEY }}"
