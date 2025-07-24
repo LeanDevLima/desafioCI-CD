@@ -7,12 +7,10 @@ terraform {
   }
 }
 
+provider "koyeb" {}
+
 variable "image" {
   type = string
-}
-
-provider "koyeb" {
-  # A autenticação é feita via variável de ambiente KOYEB_TOKEN
 }
 
 resource "koyeb_app" "app" {
@@ -21,23 +19,27 @@ resource "koyeb_app" "app" {
 
 resource "koyeb_service" "service" {
   app_name = koyeb_app.app.name
-  name     = "saudacoes-service"
 
   definition {
-    port   = 8080
-    routes = ["/saudacao"]
+    name    = "saudacoes-def"
+    regions = ["fra"]
 
-    scaling {
+    instance_types {
+      type = "micro"
+    }
+
+    scalings {
       min = 1
       max = 1
+    }
+
+    routes {
+      path = "/"
+      port = 8080
     }
 
     docker {
       image = var.image
     }
   }
-}
-
-output "url" {
-  value = "https://${koyeb_app.app.name}.koyeb.app"
 }
