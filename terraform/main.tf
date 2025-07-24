@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    koyeb = {
+      source = "koyeb/koyeb"
+      version = "2.1.0"
+    }
+  }
+}
+
 variable "koyeb_token" {
   type        = string
   sensitive   = true
@@ -12,7 +21,7 @@ provider "koyeb" {
 }
 
 resource "koyeb_app" "app" {
-  name = "saudacoes-app-${replace(substr(uuid(), 0, 8), "-", "")}"
+  name = "saudacoes-app"
 }
 
 resource "koyeb_service" "service" {

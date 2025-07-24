@@ -10,16 +10,11 @@ env:
   DOCKER_TAG: ${{ github.sha }}
 
 jobs:
-  setup:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
   lint:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
+    - uses: actions/setup-go@v4
       with:
         go-version: '1.21'
     - name: Run lint checks
@@ -34,14 +29,13 @@ jobs:
     needs: lint
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
+    - uses: actions/setup-go@v4
       with:
         go-version: '1.21'
     - name: Run tests
       run: |
         mkdir -p reports
-        go test -v -coverprofile=reports/coverage.out ./...
-        go tool cover -html=reports/coverage.out -o reports/coverage.html
+        go test -v ./...
 
   build:
     runs-on: ubuntu-latest
@@ -54,7 +48,7 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: Build and push
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v4
       with:
         context: .
         push: true
@@ -67,31 +61,25 @@ jobs:
     - uses: actions/checkout@v4
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: 1.5.7
     
-    - name: Install Koyeb Provider
+    - name: Download Koyeb Provider
       run: |
-        mkdir -p /tmp/terraform-plugins/koyeb/koyeb/2.1.0/linux_amd64
-        curl -sLo /tmp/terraform-plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb \
-          https://github.com/koyeb/terraform-provider-koyeb/releases/download/v2.1.0/terraform-provider-koyeb_2.1.0_linux_amd64
-        chmod +x /tmp/terraform-plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb
+        mkdir -p ./terraform/plugins/koyeb/koyeb/2.1.0/linux_amd64
+        curl -sLo ./terraform/plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb_v2.1.0 \
+          https://github.com/koyeb/terraform-provider-koyeb/releases/download/v2.1.0/terraform-provider-koyeb_v2.1.0_linux_amd64
+        chmod +x ./terraform/plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb_v2.1.0
     
     - name: Terraform Init
       working-directory: ./terraform
       run: |
-        export TF_PLUGIN_CACHE_DIR="/tmp/terraform-plugins"
-        terraform init -input=false -plugin-dir=/tmp/terraform-plugins
+        terraform init -plugin-dir=./plugins
         
     - name: Terraform Apply
       working-directory: ./terraform
       run: |
-        export TF_PLUGIN_CACHE_DIR="/tmp/terraform-plugins"
-        terraform apply -auto-approve -input=false \
+        terraform apply -auto-approve \
           -var="koyeb_token=${{ secrets.KOYEB_API_KEY }}" \
           -var="image=${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}"
-      env:
-        TF_LOG: INFO
 
   destroy:
     runs-on: ubuntu-latest
@@ -100,19 +88,16 @@ jobs:
     - uses: actions/checkout@v4
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: 1.5.7
     
-    - name: Install Koyeb Provider
+    - name: Download Koyeb Provider
       run: |
-        mkdir -p /tmp/terraform-plugins/koyeb/koyeb/2.1.0/linux_amd64
-        curl -sLo /tmp/terraform-plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb \
-          https://github.com/koyeb/terraform-provider-koyeb/releases/download/v2.1.0/terraform-provider-koyeb_2.1.0_linux_amd64
-        chmod +x /tmp/terraform-plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb
+        mkdir -p ./terraform/plugins/koyeb/koyeb/2.1.0/linux_amd64
+        curl -sLo ./terraform/plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb_v2.1.0 \
+          https://github.com/koyeb/terraform-provider-koyeb/releases/download/v2.1.0/terraform-provider-koyeb_v2.1.0_linux_amd64
+        chmod +x ./terraform/plugins/koyeb/koyeb/2.1.0/linux_amd64/terraform-provider-koyeb_v2.1.0
     
     - name: Terraform Destroy
       working-directory: ./terraform
       run: |
-        export TF_PLUGIN_CACHE_DIR="/tmp/terraform-plugins"
-        terraform destroy -auto-approve -input=false \
+        terraform destroy -auto-approve \
           -var="koyeb_token=${{ secrets.KOYEB_API_KEY }}"
