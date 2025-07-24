@@ -2,7 +2,7 @@ terraform {
   required_providers {
     koyeb = {
       source = "koyeb/koyeb"
-      version = ">= 2.1.0, < 3.0.0"  # Intervalo de versões aceitáveis
+      version = "2.1.0"  # Versão exata que estamos instalando manualmente
     }
   }
 }
@@ -19,12 +19,11 @@ variable "image" {
 }
 
 provider "koyeb" {
-  # Configuração do token via variável
   token = var.koyeb_token
 }
 
 resource "koyeb_app" "saudacoes-app" {
-  name = "saudacoes-app-${replace(substr(uuid(), 0, 8), "-", "")}"  # Nome único sem hifens
+  name = "saudacoes-app-${replace(substr(uuid(), 0, 8), "-", "")}"
 }
 
 resource "koyeb_service" "saudacoes-service" {
