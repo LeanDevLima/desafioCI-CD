@@ -7,17 +7,12 @@ terraform {
   }
 }
 
-variable "koyeb_token" {
-  type      = string
-  sensitive = true
-}
-
 variable "image" {
   type = string
 }
 
 provider "koyeb" {
-  token = var.koyeb_token
+  # A autenticação é feita via variável de ambiente KOYEB_TOKEN
 }
 
 resource "koyeb_app" "app" {
