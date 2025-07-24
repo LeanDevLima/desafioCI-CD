@@ -2,7 +2,7 @@ terraform {
   required_providers {
     koyeb = {
       source  = "koyeb/koyeb"
-      version = "2.1.0"
+      version = "0.1.11"
     }
   }
 }
